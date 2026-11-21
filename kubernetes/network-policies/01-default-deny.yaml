@@ -1,0 +1,9 @@
+# Step 1 of zero trust: block ALL traffic to and from every pod in the namespace. The files after this one open only what is needed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: foodhub
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]

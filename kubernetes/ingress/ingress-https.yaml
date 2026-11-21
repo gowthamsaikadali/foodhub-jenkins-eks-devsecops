@@ -1,0 +1,36 @@
+# HTTPS Ingress. Use INSTEAD of ingress.yaml (both use the name "foodhub", so applying one replaces the other).
+# Prerequisites: a domain you control, and an ACM certificate for it in ap-south-1 (see docs/PHASE-13).
+# Replace ACM_CERTIFICATE_ARN and the host below before applying.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: foodhub
+  namespace: foodhub
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/load-balancer-name: foodhub-alb
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"        # HTTP requests are redirected to HTTPS
+    alb.ingress.kubernetes.io/certificate-arn: ACM_CERTIFICATE_ARN
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+spec:
+  ingressClassName: alb
+  rules:
+    - host: foodhub.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: foodhub-backend
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: foodhub-frontend
+                port:
+                  number: 80

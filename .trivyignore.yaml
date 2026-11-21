@@ -1,0 +1,15 @@
+# Every exception needs: the rule id, WHERE it applies, WHY it is acceptable, and an expiry so it is reviewed again.
+# Do not add entries just to make a build green. Fix the finding first.
+misconfigurations:
+  - id: AVD-AWS-0104
+    paths: ["terraform/modules/security/main.tf"]
+    statement: "Jenkins and SonarQube must reach GitHub, package mirrors and AWS APIs, so outbound 0.0.0.0/0 is required. Inbound is restricted to the admin IP. Production recommendation: route through a proxy or VPC endpoints."
+    expired_at: 2027-06-30
+  - id: AVD-AWS-0040
+    paths: ["terraform/modules/eks/main.tf"]
+    statement: "EKS public endpoint is limited to the admin IP through public_access_cidrs (validated to never be 0.0.0.0/0). Production recommendation: private endpoint plus VPN or bastion."
+    expired_at: 2027-06-30
+  - id: AVD-AWS-0057
+    paths: ["terraform/modules/iam/main.tf"]
+    statement: "The Terraform deployer role needs service-level wildcards to create infrastructure. It can only be assumed by the Jenkins role after manual approval, and IAM actions are limited to project-prefixed names."
+    expired_at: 2027-06-30

@@ -1,0 +1,8 @@
+import api from './api';
+
+export const authService = {
+  login: (email, password) => api.post('/auth/login', { email, password }).then((r) => r.data),
+  register: (payload) => api.post('/auth/register', payload).then((r) => r.data),
+  me: () => api.get('/users/me').then((r) => r.data),
+  updateProfile: (payload) => api.put('/users/me', payload).then((r) => r.data),
+};

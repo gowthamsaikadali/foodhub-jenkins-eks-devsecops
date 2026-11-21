@@ -1,0 +1,119 @@
+// FoodHub INFRASTRUCTURE pipeline (Terraform).
+// MANUAL ONLY: there is no webhook or polling trigger, so application commits can never change infrastructure.
+// It can plan and apply. It cannot destroy: destruction is a deliberate manual action (see docs/PHASE-16).
+//
+// Jenkins credentials needed:
+//   foodhub-terraform-tfvars  (type: Secret file)  your personal terraform/terraform.tfvars (admin_cidrs, ARNs, bucket name)
+
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        timeout(time: 90, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '15'))
+    }
+
+    parameters {
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'prod'], description: 'Which environment to manage')
+        choice(name: 'ACTION', choices: ['plan', 'apply'], description: 'plan = show changes only. apply = plan, wait for approval, then apply.')
+        string(name: 'TERRAFORM_ROLE_ARN', defaultValue: '', description: 'ARN of the <project>-<env>-terraform-deployer role (terraform output terraform_deployer_role_arn). Required on the first run.')
+    }
+
+    environment {
+        AWS_REGION         = 'ap-south-1'
+        AWS_DEFAULT_REGION = 'ap-south-1'
+        TF_IN_AUTOMATION   = 'true'
+        TF_INPUT           = '0'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh 'mkdir -p reports'
+            }
+        }
+
+        stage('Format and validate') {
+            steps {
+                dir('terraform') {
+                    sh '''
+                        terraform fmt -check -recursive
+                        terraform init -backend=false
+                        terraform validate
+                    '''
+                }
+            }
+        }
+
+        stage('Trivy IaC scan') {
+            steps {
+                sh '''
+                    trivy config --config trivy.yaml --exit-code 0 --format json --output reports/trivy-iac.json terraform
+                    trivy config --config trivy.yaml --exit-code 1 terraform
+                '''
+            }
+        }
+
+        stage('Assume Terraform role and plan') {
+            steps {
+                withCredentials([file(credentialsId: 'foodhub-terraform-tfvars', variable: 'TFVARS_FILE')]) {
+                    sh '''
+                        set -e
+                        [ -n "$TERRAFORM_ROLE_ARN" ] || { echo "Set TERRAFORM_ROLE_ARN"; exit 1; }
+
+                        # The Jenkins instance role cannot build infrastructure. It may only ASSUME this role, for one hour.
+                        CREDS=$(aws sts assume-role --role-arn "$TERRAFORM_ROLE_ARN" --role-session-name "jenkins-${BUILD_NUMBER}" \
+                                  --duration-seconds 3600 --query 'Credentials' --output json)
+                        export AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r .AccessKeyId)
+                        export AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r .SecretAccessKey)
+                        export AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r .SessionToken)
+
+                        cd terraform
+                        terraform init -reconfigure -backend-config="environments/${ENVIRONMENT}/backend.hcl"
+                        terraform plan -var-file="environments/${ENVIRONMENT}/${ENVIRONMENT}.tfvars" -var-file="$TFVARS_FILE" \
+                                       -out=tfplan -detailed-exitcode || test $? -eq 2 || test $? -eq 0
+                        terraform show -no-color tfplan > ../reports/plan-${ENVIRONMENT}.txt
+                    '''
+                }
+                archiveArtifacts artifacts: 'reports/plan-*.txt', allowEmptyArchive: false
+            }
+        }
+
+        stage('Manual approval') {
+            when { expression { params.ACTION == 'apply' } }
+            steps {
+                // A human reads the archived plan and decides. Nobody can approve by accident from a commit.
+                timeout(time: 30, unit: 'MINUTES') {
+                    input message: "Apply the ${params.ENVIRONMENT} plan? Read reports/plan-${params.ENVIRONMENT}.txt first.", ok: 'Apply'
+                }
+            }
+        }
+
+        stage('Apply') {
+            when { expression { params.ACTION == 'apply' } }
+            steps {
+                sh '''
+                    set -e
+                    CREDS=$(aws sts assume-role --role-arn "$TERRAFORM_ROLE_ARN" --role-session-name "jenkins-apply-${BUILD_NUMBER}" \
+                              --duration-seconds 3600 --query 'Credentials' --output json)
+                    export AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r .AccessKeyId)
+                    export AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r .SecretAccessKey)
+                    export AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r .SessionToken)
+                    cd terraform
+                    terraform apply tfplan          # applies EXACTLY the plan that was reviewed
+                    terraform output
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
+            sh 'rm -f terraform/tfplan'
+        }
+    }
+}

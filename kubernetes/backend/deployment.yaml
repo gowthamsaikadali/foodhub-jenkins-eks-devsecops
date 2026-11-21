@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: foodhub-backend
+  namespace: foodhub
+  labels:
+    app.kubernetes.io/name: foodhub-backend
+    app.kubernetes.io/part-of: foodhub
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5            # keeps old ReplicaSets so "kubectl rollout undo" works
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: foodhub-backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0              # never remove an old pod before a new one is Ready
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: foodhub-backend
+        app.kubernetes.io/part-of: foodhub
+    spec:
+      serviceAccountName: foodhub-backend
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:     # spread the two replicas over different nodes/AZs
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: foodhub-backend
+      containers:
+        - name: backend
+          # Exact, immutable tag filled in by the Jenkins deploy script. Never "latest".
+          image: ${ECR_REGISTRY}/foodhub-backend:${IMAGE_TAG}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: foodhub-backend-config
+            - secretRef:
+                name: foodhub-backend-secrets
+            - secretRef:
+                name: foodhub-seed          # only exists while scripts/create-admin.sh is running
+                optional: true
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          startupProbe:              # gives Spring Boot up to 5 minutes to start (Flyway migrations on first boot)
+            httpGet:
+              path: /actuator/health/liveness
+              port: metrics
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:            # "send me traffic?"  fails while the DB is unreachable
+            httpGet:
+              path: /actuator/health/readiness
+              port: metrics
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:             # "restart me?"
+            httpGet:
+              path: /actuator/health/liveness
+              port: metrics
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          lifecycle:
+            preStop:                 # short pause so the load balancer stops sending requests before shutdown
+              exec:
+                command: ["sh", "-c", "sleep 10"]
+      volumes:
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,12 @@
+# Personal values. Copy to terraform.tfvars (git-ignored) and edit.
+#   cp terraform.tfvars.example terraform.tfvars
+
+# Your public IP:  curl https://checkip.amazonaws.com    then add /32
+admin_cidrs = ["203.0.113.7/32"]
+
+# Your IAM admin user ARN:  aws sts get-caller-identity --query Arn --output text
+admin_principal_arns         = ["arn:aws:iam::123456789012:user/your-admin-user"]
+terraform_extra_trusted_arns = ["arn:aws:iam::123456789012:user/your-admin-user"]
+
+# The bucket created in terraform/bootstrap (the name must be globally unique)
+state_bucket_name = "foodhub-tfstate-123456789012-ap-south-1"

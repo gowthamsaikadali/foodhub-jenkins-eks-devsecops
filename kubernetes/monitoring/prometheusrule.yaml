@@ -1,0 +1,67 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: foodhub-alerts
+  namespace: foodhub
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: foodhub.rules
+      rules:
+        - alert: FoodHubPodCrashLooping
+          expr: max_over_time(kube_pod_container_status_waiting_reason{namespace="foodhub", reason="CrashLoopBackOff"}[5m]) >= 1
+          for: 2m
+          labels: { severity: critical }
+          annotations:
+            summary: "Pod {{ $labels.pod }} is in CrashLoopBackOff"
+            description: "Container {{ $labels.container }} keeps crashing. Run: kubectl logs -n foodhub {{ $labels.pod }} --previous"
+
+        - alert: FoodHubHighPodCPU
+          expr: |
+            sum by (pod) (rate(container_cpu_usage_seconds_total{namespace="foodhub", container!=""}[5m]))
+              / sum by (pod) (kube_pod_container_resource_limits{namespace="foodhub", resource="cpu"}) > 0.85
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "Pod {{ $labels.pod }} uses more than 85% of its CPU limit for 10 minutes"
+
+        - alert: FoodHubHighPodMemory
+          expr: |
+            sum by (pod) (container_memory_working_set_bytes{namespace="foodhub", container!=""})
+              / sum by (pod) (kube_pod_container_resource_limits{namespace="foodhub", resource="memory"}) > 0.90
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "Pod {{ $labels.pod }} uses more than 90% of its memory limit"
+
+        - alert: FoodHubNodeNotReady
+          expr: kube_node_status_condition{condition="Ready", status="true"} == 0
+          for: 3m
+          labels: { severity: critical }
+          annotations:
+            summary: "Node {{ $labels.node }} is not Ready"
+
+        - alert: FoodHubBackendDown
+          expr: sum(up{job="foodhub-backend"}) == 0 or absent(up{job="foodhub-backend"})
+          for: 2m
+          labels: { severity: critical }
+          annotations:
+            summary: "No FoodHub backend instance is reachable by Prometheus"
+
+        - alert: FoodHubHigh5xxRate
+          expr: |
+            sum(rate(http_server_requests_seconds_count{job="foodhub-backend", status=~"5.."}[5m]))
+              / clamp_min(sum(rate(http_server_requests_seconds_count{job="foodhub-backend"}[5m])), 0.001) > 0.05
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: "More than 5% of API responses are HTTP 5xx"
+
+        - alert: FoodHubSlowApi
+          expr: |
+            histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job="foodhub-backend"}[5m]))) > 1
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "95th percentile API latency is above 1 second"

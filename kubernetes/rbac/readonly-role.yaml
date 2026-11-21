@@ -1,0 +1,26 @@
+# Read-only access to the foodhub namespace for teammates/reviewers. Bind it to an IAM principal by creating an
+# EKS access entry with kubernetes group "foodhub-readonly" (see docs/PHASE-13, "Kubernetes RBAC").
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: foodhub-readonly
+  namespace: foodhub
+rules:
+  - apiGroups: ["", "apps", "autoscaling", "networking.k8s.io"]
+    resources: ["pods", "pods/log", "services", "deployments", "replicasets", "horizontalpodautoscalers", "ingresses", "events", "configmaps"]
+    verbs: ["get", "list", "watch"]
+  # Secrets are deliberately NOT included
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: foodhub-readonly
+  namespace: foodhub
+subjects:
+  - kind: Group
+    name: foodhub-readonly
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: foodhub-readonly
+  apiGroup: rbac.authorization.k8s.io
