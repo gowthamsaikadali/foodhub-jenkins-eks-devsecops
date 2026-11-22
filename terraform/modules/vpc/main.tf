@@ -3,11 +3,11 @@
 #   private app 10.0.10.0/24  10.0.11.0/24    -> EKS worker nodes
 #   private db  10.0.20.0/24  10.0.21.0/24    -> RDS MySQL
 locals {
-  az_count            = length(var.azs)
-  public_cidrs        = [for i in range(local.az_count) : cidrsubnet(var.vpc_cidr, 8, i)]
-  private_app_cidrs   = [for i in range(local.az_count) : cidrsubnet(var.vpc_cidr, 8, 10 + i)]
-  private_db_cidrs    = [for i in range(local.az_count) : cidrsubnet(var.vpc_cidr, 8, 20 + i)]
-  nat_count           = var.single_nat_gateway ? 1 : local.az_count
+  az_count          = length(var.azs)
+  public_cidrs      = [for i in range(local.az_count) : cidrsubnet(var.vpc_cidr, 8, i)]
+  private_app_cidrs = [for i in range(local.az_count) : cidrsubnet(var.vpc_cidr, 8, 10 + i)]
+  private_db_cidrs  = [for i in range(local.az_count) : cidrsubnet(var.vpc_cidr, 8, 20 + i)]
+  nat_count         = var.single_nat_gateway ? 1 : local.az_count
 }
 
 resource "aws_vpc" "this" {

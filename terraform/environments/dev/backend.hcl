@@ -1,6 +1,6 @@
 # Used with:  terraform init -backend-config=environments/dev/backend.hcl
 # Replace the bucket name with the one printed by terraform/bootstrap.
-bucket       = "foodhub-tfstate-REPLACE_ACCOUNT_ID-ap-south-1"
+bucket       = "foodhub-tfstate-762131619075-ap-south-1"
 key          = "foodhub/dev/terraform.tfstate"
 region       = "ap-south-1"
 encrypt      = true

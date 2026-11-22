@@ -1,6 +1,6 @@
 resource "aws_cloudwatch_log_group" "cluster" {
   name              = "/aws/eks/${var.cluster_name}/cluster"
-  retention_in_days = 7 # keep log cost low
+  retention_in_days = 1 # keep log cost low
   tags              = var.tags
 }
 
@@ -87,7 +87,7 @@ resource "aws_eks_addon" "vpc_cni" {
   # Turns on Kubernetes NetworkPolicy enforcement in the AWS VPC CNI. Without this the policies in
   # kubernetes/network-policies would be accepted by the API but silently NOT enforced.
   configuration_values = jsonencode({ enableNetworkPolicy = "true" })
-  tags                        = var.tags
+  tags                 = var.tags
 }
 
 resource "aws_eks_addon" "kube_proxy" {

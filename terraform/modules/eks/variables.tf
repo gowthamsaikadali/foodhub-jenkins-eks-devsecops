@@ -29,18 +29,19 @@ variable "cluster_log_types" {
 }
 
 variable "node_instance_types" {
-  type    = list(string)
-  default = ["t3.medium"]
+  description = "EC2 instance types for EKS worker nodes"
+  type        = list(string)
+  default     = ["t3.small"]
 }
 
 variable "node_desired_size" {
   type    = number
-  default = 2
+  default = 1
 }
 
 variable "node_min_size" {
   type    = number
-  default = 2
+  default = 1
 }
 
 variable "node_max_size" {

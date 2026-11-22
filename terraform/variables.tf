@@ -37,7 +37,7 @@ variable "single_nat_gateway" {
 
 # ---------- access control ----------
 variable "admin_cidrs" {
-  description = "Your public IP as CIDR, e.g. [\"203.0.113.7/32\"]. Find it with: curl https://checkip.amazonaws.com"
+  description = "Your public IP as CIDR, e.g. [\"124.123.138.4/32\"]. Find it with: curl https://checkip.amazonaws.com"
   type        = list(string)
   validation {
     condition     = length(var.admin_cidrs) > 0 && !contains(var.admin_cidrs, "0.0.0.0/0")
@@ -78,7 +78,7 @@ variable "kubernetes_version" {
 
 variable "node_instance_types" {
   type    = list(string)
-  default = ["t3.medium"]
+  default = ["c7i-flex.large"]
 }
 
 variable "node_desired_size" {
@@ -148,12 +148,12 @@ variable "create_ci_servers" {
 
 variable "jenkins_instance_type" {
   type    = string
-  default = "t3.medium"
+  default = "c7i-flex.large"
 }
 
 variable "sonarqube_instance_type" {
   type    = string
-  default = "t3.medium"
+  default = "c7i-flex.large"
 }
 
 variable "secret_recovery_window_days" {

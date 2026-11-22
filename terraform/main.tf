@@ -28,13 +28,13 @@ module "vpc" {
 module "iam" {
   source = "./modules/iam"
 
-  name                          = local.name
-  region                        = var.region
-  account_id                    = local.account_id
-  cluster_name                  = local.cluster_name
-  ecr_repository_names          = local.ecr_repos
-  state_bucket_name             = var.state_bucket_name
-  extra_trusted_principal_arns  = var.terraform_extra_trusted_arns
+  name                         = local.name
+  region                       = var.region
+  account_id                   = local.account_id
+  cluster_name                 = local.cluster_name
+  ecr_repository_names         = local.ecr_repos
+  state_bucket_name            = var.state_bucket_name
+  extra_trusted_principal_arns = var.terraform_extra_trusted_arns
 }
 
 # 3. Container registry
